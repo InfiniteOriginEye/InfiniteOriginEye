@@ -1,0 +1,254 @@
+"""
+Channel Orchestrator - Fetches from all Indian helplines on schedule
+====================================================================
+
+Three fetch modes:
+  1. POLL:    Scheduled polling (IMD, CWC, INCOIS, Sachet, CPGRAMS, RailMadad)
+  2. WEBHOOK: On-demand from incoming webhooks (Citizen App, SMS, WhatsApp, ERSS)
+  3. STREAM:  Continuous MQTT streams (IoT sensors)
+  4. MANUAL:  Human-entered incidents (NDRF, Armed Forces, CAPF)
+
+The orchestrator runs as a background worker that:
+  - Polls each channel at its configured interval
+  - Normalizes raw data → canonical Incident
+  - Publishes to Kafka "incidents.created"
+  - Tracks last-fetch timestamp per channel
+"""
+
+import asyncio
+import json
+import logging
+from datetime import datetime, timezone
+from typing import Optional
+
+from .channels import (
+    ADAPTERS, POLL_CHANNELS, WEBHOOK_CHANNELS, STREAM_CHANNELS,
+    HELPLINE_DIRECTORY, ChannelID, FetchResult, RawIncident,
+)
+from .registry import BaseChannelAdapter
+
+logger = logging.getLogger("s1.orchestrator")
+
+
+class ChannelOrchestrator:
+    """
+    Orchestrates fetching from all Indian disaster helplines.
+
+    Runs as an async background task with per-channel polling intervals.
+    """
+
+    def __init__(self, kafka_producer=None):
+        self.kafka_producer = kafka_producer
+        self.running = False
+        self.last_fetch: dict[ChannelID, datetime] = {}
+        self.fetch_stats: dict[ChannelID, dict] = {}
+        self._tasks: list[asyncio.Task] = []
+
+    async def start(self):
+        """Start the orchestrator — launch all polling tasks."""
+        self.running = True
+        logger.info(f"Channel Orchestrator starting — {len(ADAPTERS)} adapters registered")
+        logger.info(f"  POLL: {len(POLL_CHANNELS)} channels")
+        logger.info(f"  WEBHOOK: {len(WEBHOOK_CHANNELS)} channels")
+        logger.info(f"  STREAM: {len(STREAM_CHANNELS)} channels")
+
+        # Launch a polling task for each poll-type channel
+        for channel_id in POLL_CHANNELS:
+            if channel_id in ADAPTERS:
+                info = HELPLINE_DIRECTORY.get(channel_id)
+                interval = info.poll_interval_s if info else 300
+                task = asyncio.create_task(
+                    self._poll_loop(channel_id, interval),
+                    name=f"poll_{channel_id.value}",
+                )
+                self._tasks.append(task)
+                logger.info(f"  Started poll: {channel_id.value} every {interval}s")
+
+        # Stream channels need MQTT workers (separate process)
+        for channel_id in STREAM_CHANNELS:
+            logger.info(f"  Stream channel {channel_id.value} — requires MQTT worker")
+
+        logger.info(f"Channel Orchestrator running with {len(self._tasks)} poll tasks")
+
+    async def stop(self):
+        """Stop all polling tasks."""
+        self.running = False
+        for task in self._tasks:
+            task.cancel()
+        await asyncio.gather(*self._tasks, return_exceptions=True)
+        self._tasks.clear()
+        logger.info("Channel Orchestrator stopped")
+
+    async def _poll_loop(self, channel_id: ChannelID, interval_s: int):
+        """Poll a single channel on its configured interval."""
+        adapter = ADAPTERS[channel_id]
+        while self.running:
+            try:
+                since = self.last_fetch.get(channel_id)
+                result = await adapter.fetch(since=since)
+
+                if result.success and result.incidents:
+                    await self._process_fetch_result(result)
+                    self.last_fetch[channel_id] = result.fetched_at
+                    logger.info(
+                        f"[{channel_id.value}] Fetched {len(result.incidents)} incidents"
+                    )
+                elif not result.success:
+                    logger.warning(f"[{channel_id.value}] Fetch failed: {result.error}")
+
+                # Update stats
+                self.fetch_stats[channel_id] = {
+                    "last_fetch": result.fetched_at.isoformat(),
+                    "incidents_found": len(result.incidents),
+                    "success": result.success,
+                    "error": result.error,
+                }
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"[{channel_id.value}] Poll error: {e}")
+
+            await asyncio.sleep(interval_s)
+
+    async def _process_fetch_result(self, result: FetchResult):
+        """Normalize and publish all incidents from a fetch result."""
+        adapter = ADAPTERS.get(result.channel_id)
+        if not adapter:
+            return
+
+        for raw_incident in result.incidents:
+            try:
+                # Normalize raw data → canonical incident fields
+                normalized = await adapter.normalize(raw_incident)
+
+                # Merge with raw data fields
+                incident_data = {
+                    "incident_id": None,  # Generated by DB
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                    "channel": result.channel_id.value,
+                    "status": "created",
+                    **normalized,
+                }
+
+                # Publish to Kafka
+                if self.kafka_producer:
+                    await self.kafka_producer.send(
+                        topic="incidents.created",
+                        key=raw_incident.source_id or "",
+                        value=json.dumps(incident_data).encode(),
+                    )
+                else:
+                    logger.debug(f"Incident from {result.channel_id.value}: {incident_data.get('summary_text', '')[:80]}")
+
+            except Exception as e:
+                logger.error(f"Failed to normalize incident from {result.channel_id.value}: {e}")
+
+    # -------------------------------------------------------------------------
+    # Webhook Processing (called by FastAPI endpoints, not polling)
+    # -------------------------------------------------------------------------
+
+    async def process_webhook(self, channel_id: ChannelID, payload: dict) -> Optional[str]:
+        """Process an incoming webhook from a channel (WhatsApp, SMS, Citizen App)."""
+        adapter = ADAPTERS.get(channel_id)
+        if not adapter:
+            logger.warning(f"No adapter for webhook channel {channel_id.value}")
+            return None
+
+        # Channel-specific webhook processing
+        if channel_id == ChannelID.WHATSAPP_BUSINESS and hasattr(adapter, "process_webhook"):
+            raw_incidents = await adapter.process_webhook(payload)
+        elif channel_id == ChannelID.SMS_SHORTCODE and hasattr(adapter, "process_inbound_sms"):
+            sender = payload.get("sender", "")
+            text = payload.get("text", "")
+            ts = datetime.now(timezone.utc)
+            raw = await adapter.process_inbound_sms(sender, text, ts)
+            raw_incidents = [raw]
+        elif channel_id == ChannelID.CITIZEN_APP:
+            raw_incidents = [RawIncident(
+                channel_id=channel_id,
+                raw_data=payload,
+                caller_phone=payload.get("reporter_phone"),
+                latitude=payload.get("latitude"),
+                longitude=payload.get("longitude"),
+                description=payload.get("description"),
+                media_urls=payload.get("media_urls", []),
+            )]
+        else:
+            raw_incidents = [RawIncident(channel_id=channel_id, raw_data=payload)]
+
+        # Normalize and publish each
+        for raw in raw_incidents:
+            normalized = await adapter.normalize(raw)
+            incident_data = {
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "channel": channel_id.value,
+                **normalized,
+            }
+            if self.kafka_producer:
+                await self.kafka_producer.send(
+                    topic="incidents.created",
+                    key=raw.source_id or "",
+                    value=json.dumps(incident_data).encode(),
+                )
+
+        return f"Processed {len(raw_incidents)} incidents from {channel_id.value}"
+
+    # -------------------------------------------------------------------------
+    # MQTT Stream Processing (called by MQTT bridge worker)
+    # -------------------------------------------------------------------------
+
+    async def process_mqtt_message(self, channel_id: ChannelID, sensor_id: str, payload: dict) -> Optional[str]:
+        """Process an MQTT message from an IoT sensor stream."""
+        adapter = ADAPTERS.get(channel_id)
+        if not adapter or not hasattr(adapter, "process_mqtt_message"):
+            return None
+
+        raw = await adapter.process_mqtt_message(sensor_id, payload)
+        if raw is None:
+            return None  # Below threshold — no incident
+
+        normalized = await adapter.normalize(raw)
+        incident_data = {
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "channel": channel_id.value,
+            **normalized,
+        }
+
+        if self.kafka_producer:
+            await self.kafka_producer.send(
+                topic="incidents.created",
+                key=sensor_id,
+                value=json.dumps(incident_data).encode(),
+            )
+
+        return f"IoT alert from {sensor_id}: {normalized.get('summary_text', '')[:60]}"
+
+    # -------------------------------------------------------------------------
+    # Status / Health
+    # -------------------------------------------------------------------------
+
+    def get_status(self) -> dict:
+        """Get orchestrator status — all channels and their last fetch times."""
+        return {
+            "running": self.running,
+            "adapters_registered": len(ADAPTERS),
+            "poll_channels": len(POLL_CHANNELS),
+            "webhook_channels": len(WEBHOOK_CHANNELS),
+            "stream_channels": len(STREAM_CHANNELS),
+            "active_tasks": len(self._tasks),
+            "channel_stats": {
+                cid.value: stats for cid, stats in self.fetch_stats.items()
+            },
+            "helpline_directory": {
+                cid.value: {
+                    "name": info.name,
+                    "number": info.number,
+                    "api_available": info.api_available,
+                    "fetch_strategy": info.fetch_strategy,
+                    "priority": info.priority,
+                }
+                for cid, info in HELPLINE_DIRECTORY.items()
+            },
+        }
