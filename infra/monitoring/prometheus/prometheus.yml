@@ -3,19 +3,47 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: "scc-backend"
+  - job_name: 's1-incident-intake'
+    static_configs:
+      - targets: ['s1:8001']
     metrics_path: /metrics
-    static_configs:
-      - targets: ["host.docker.internal:8000"]
 
-  - job_name: "scc-telemetry"
+  - job_name: 's2-review-dashboard'
     static_configs:
-      - targets: ["host.docker.internal:9090"]
+      - targets: ['s2:8002']
 
-  - job_name: "triton"
+  - job_name: 's3-swarm-command'
     static_configs:
-      - targets: ["triton:8002"]
+      - targets: ['s3:8003']
 
-  - job_name: "kafka"
+  - job_name: 's4-rescue-coord'
     static_configs:
-      - targets: ["kafka:9092"]
+      - targets: ['s4:8004']
+
+  - job_name: 's5-early-warning'
+    static_configs:
+      - targets: ['s5:8005']
+
+  - job_name: 's6-erss-connector'
+    static_configs:
+      - targets: ['s6:8006']
+
+  - job_name: 's7-data-handover'
+    static_configs:
+      - targets: ['s7:8007']
+
+  - job_name: 'emqx'
+    static_configs:
+      - targets: ['emqx:18083']
+
+  - job_name: 'kafka'
+    static_configs:
+      - targets: ['kafka-jmx:9999']
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']

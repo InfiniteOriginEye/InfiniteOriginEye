@@ -1,0 +1,42 @@
+{
+  "name": "s2-review-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "S2 - SEOC Professional Review Dashboard (SDMA/SEOC)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "next": "^14.2",
+    "react": "^18.3",
+    "react-dom": "^18.3",
+    "@mui/material": "^5.15",
+    "@mui/icons-material": "^5.15",
+    "@emotion/react": "^11.11",
+    "@emotion/styled": "^11.11",
+    "cesium": "^1.119",
+    "resium": "^1.17",
+    "deck.gl": "^9.0",
+    "@deck.gl/core": "^9.0",
+    "@deck.gl/layers": "^9.0",
+    "maplibre-gl": "^4.1",
+    "@tanstack/react-query": "^5.28",
+    "zustand": "^4.5",
+    "axios": "^1.6",
+    "socket.io-client": "^4.7",
+    "date-fns": "^3.6",
+    "notistack": "^3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4",
+    "@types/react": "^18.3",
+    "vite": "^5.2",
+    "vitest": "^1.4",
+    "eslint": "^8.57",
+    "eslint-config-next": "^14.2"
+  }
+}

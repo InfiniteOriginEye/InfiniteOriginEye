@@ -1,0 +1,133 @@
+# =============================================================================
+# Kafka Topics Configuration
+# =============================================================================
+# All topics use: cleanup.policy=delete, retention.ms=604800000 (7 days)
+# Replication factor: 3 in production, 1 in dev
+
+topics:
+  # --- Incident Lifecycle (S1 → S2 → S3/S4) ---
+  - name: incidents.created
+    partitions: 12
+    description: "New incident created (S1). Consumed by S2 for review, S9 for AI triage"
+    key_format: incident_id
+    value_format: json
+
+  - name: incidents.ai_triaged
+    partitions: 12
+    description: "AI triage complete (S9). Consumed by S2 for professional review queue"
+    key_format: incident_id
+    value_format: json
+
+  - name: incidents.approved
+    partitions: 12
+    description: "Duty Officer approved (S2). Consumed by S3 for swarm dispatch, S4 for team dispatch"
+    key_format: incident_id
+    value_format: json
+
+  - name: incidents.rejected
+    partitions: 12
+    description: "Duty Officer rejected/modified (S2)"
+    key_format: incident_id
+    value_format: json
+
+  - name: incidents.status_changed
+    partitions: 12
+    description: "Any status transition. Consumed by S7 for audit, S6 for ERSS sync"
+    key_format: incident_id
+    value_format: json
+
+  # --- Swarm Operations (S3) ---
+  - name: swarm.deploy
+    partitions: 6
+    description: "Deploy swarm to mission area (S3). Consumed by MQTT bridge → drones"
+    key_format: mission_id
+    value_format: protobuf
+
+  - name: swarm.recall
+    partitions: 6
+    description: "Recall swarm from mission (S3)"
+    key_format: mission_id
+    value_format: protobuf
+
+  - name: swarm.telemetry
+    partitions: 12
+    description: "Drone telemetry batch (from MQTT bridge). TimescaleDB consumer"
+    key_format: mission_id
+    value_format: protobuf
+
+  - name: swarm.status
+    partitions: 6
+    description: "Swarm formation/status updates (S3). Consumed by S2 dashboard"
+    key_format: mission_id
+    value_format: protobuf
+
+  - name: swarm.digital_twin
+    partitions: 3
+    description: "3D map updates from Mother Drone (S3). Consumed by CesiumJS frontend"
+    key_format: mission_id
+    value_format: binary
+
+  # --- Rescue Operations (S4) ---
+  - name: teams.dispatched
+    partitions: 6
+    description: "Rescue team dispatched (S4). Consumed by field app"
+    key_format: team_id
+    value_format: json
+
+  - name: teams.location_update
+    partitions: 12
+    description: "Field team GPS updates (S4 app). 30-second intervals"
+    key_format: team_id
+    value_format: json
+
+  - name: teams.patient_handover
+    partitions: 6
+    description: "Patient handover events: rescue → ambulance → hospital"
+    key_format: team_id
+    value_format: json
+
+  # --- Early Warning (S5) ---
+  - name: alerts.early_warning
+    partitions: 6
+    description: "IMD/INCOIS/CWC/GFS alerts (S5). May auto-create incidents in S1"
+    key_format: source
+    value_format: json
+
+  - name: alerts.threshold_breach
+    partitions: 3
+    description: "Threshold breach detected (S5). Triggers automated actions"
+    key_format: alert_id
+    value_format: json
+
+  # --- ERSS Integration (S6) ---
+  - name: erss.incident_sync
+    partitions: 6
+    description: "Bi-directional ERSS sync events (S6)"
+    key_format: erss_incident_id
+    value_format: json
+
+  # --- AI/ML Events (S9) ---
+  - name: ml.inference_request
+    partitions: 6
+    description: "Request to Triton for inference (damage assessment, triage)"
+    key_format: request_id
+    value_format: json
+
+  - name: ml.inference_result
+    partitions: 6
+    description: "Inference results from Triton"
+    key_format: request_id
+    value_format: json
+
+  # --- Audit & Reporting (S7) ---
+  - name: audit.events
+    partitions: 12
+    description: "All auditable actions. Consumed by S7 for compliance"
+    key_format: entity_id
+    value_format: json
+
+  - name: reports.generated
+    partitions: 3
+    description: "Report generation events (NDMIS export, compliance)"
+    key_format: report_id
+    value_format: json

@@ -1,69 +1,126 @@
-# ── Python ────────────────────────────────────────────────────
+# =============================================================================
+# Swarm Command & Control - .gitignore
+# =============================================================================
+
+# --- Python ---
 __pycache__/
 *.py[cod]
 *$py.class
+*.so
 *.egg-info/
 dist/
+build/
 .eggs/
 *.egg
-.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
 venv/
+.venv/
+env/
 .env
-*.pyc
+*.pkl
+*.joblib
 
-# ── Node / Next.js ───────────────────────────────────────────
+# --- Go ---
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
+
+# --- Node / TypeScript / React ---
 node_modules/
 .next/
 out/
-.expo/
+.nuxt/
+.cache/
 *.tsbuildinfo
+.turbo/
+.vercel/
+.expo/
+dist/
+bundle/
 
-# ── Go ───────────────────────────────────────────────────────
-telemetry/bin/
-*.exe
+# --- React Native ---
+.android/
+.ios/
+*.jks
+*.keystore
+build/
+android/app/build/
+ios/build/
+ios/Pods/
 
-# ── React Native ─────────────────────────────────────────────
-mobile/rescue-app/ios/
-mobile/rescue-app/android/
-mobile/citizen-app/ios/
-mobile/citizen-app/android/
+# --- Docker ---
+*.dockerignore
 
-# ── Docker / Volumes ─────────────────────────────────────────
-pgdata/
-redisdata/
-emqxdata/
-mlflowdata/
-miniodata/
-grafanadata/
-
-# ── AI / ML ──────────────────────────────────────────────────
-ai/training/datasets/*.zip
-ai/training/datasets/*.tar.gz
-ai/serving/triton/model_repository/*/
-!ai/serving/triton/model_repository/.gitkeep
-*.onnx
-*.pt
-*.pth
-*.bin
-mlruns/
-
-# ── IDE ──────────────────────────────────────────────────────
+# --- IDE ---
 .idea/
 .vscode/
 *.swp
 *.swo
+*~
 .DS_Store
+Thumbs.db
 
-# ── Secrets (NEVER commit) ───────────────────────────────────
+# --- Terraform ---
+**/*.tfstate
+**/*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+terraform.tfvars
+*.tfplan
+
+# --- Vault ---
+vault-data/
+*.hcl_secret
+
+# --- Secrets ---
 *.pem
 *.key
 *.crt
-.env.production
-infra/vault/secrets/
+*.p12
+secrets.yaml
+secrets.json
 
-# ── Build artifacts ──────────────────────────────────────────
+# --- Data / ML ---
+ai-ml/models/**/*.pt
+ai-ml/models/**/*.pth
+ai-ml/models/**/*.onnx
+ai-ml/models/**/*.engine
+ai-ml/data/datasets/*
+!ai-ml/data/datasets/.gitkeep
+ai-ml/mlflow/artifacts/*
+!ai-ml/mlflow/artifacts/.gitkeep
+
+# --- Logs ---
 *.log
-coverage/
-htmlcov/
-.ruff_cache/
-.mypy_cache/
+logs/
+
+# --- Kafka ---
+kafka-data/
+zookeeper-data/
+
+# --- Redis ---
+redis-data/
+
+# --- PostgreSQL ---
+pg-data/
+
+# --- MinIO ---
+minio-data/
+
+# --- Temp ---
+tmp/
+temp/

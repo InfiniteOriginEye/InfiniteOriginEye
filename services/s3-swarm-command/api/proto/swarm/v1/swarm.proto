@@ -1,0 +1,170 @@
+syntax = "proto3";
+
+package swarm.v1;
+
+option go_package = "github.com/c-dac/scc/s3-swarm-command/api/proto/swarm/v1";
+
+// =============================================================================
+// Swarm Command & Control - gRPC Service Definitions
+// =============================================================================
+
+service SwarmCommander {
+  rpc CreateMission(CreateMissionRequest) returns (Mission);
+  rpc AbortMission(AbortMissionRequest) returns (AbortMissionResponse);
+  rpc GetMissionStatus(GetMissionStatusRequest) returns (Mission);
+  rpc ListActiveMissions(ListActiveMissionsRequest) returns (MissionList);
+  rpc DeploySwarm(DeploySwarmRequest) returns (DeploySwarmResponse);
+  rpc RecallSwarm(RecallSwarmRequest) returns (RecallSwarmResponse);
+  rpc SetFormation(SetFormationRequest) returns (Formation);
+  rpc UpdateFormation(UpdateFormationRequest) returns (Formation);
+  rpc StreamTelemetry(TelemetryRequest) returns (stream TelemetryBatch);
+}
+
+service DigitalTwin {
+  rpc StreamMapUpdates(MapUpdateRequest) returns (stream MapUpdate);
+  rpc GetMapSnapshot(GetMapSnapshotRequest) returns (MapSnapshot);
+}
+
+service DroneTelemetry {
+  rpc SendCommand(DroneCommand) returns (CommandAck);
+  rpc GetDroneStatus(GetDroneStatusRequest) returns (DroneStatus);
+  rpc StreamDroneVideo(StreamVideoRequest) returns (stream VideoFrame);
+}
+
+// =============================================================================
+// Core Domain Messages
+// =============================================================================
+
+message Mission {
+  string mission_id = 1;
+  string incident_id = 2;
+  MissionStatus status = 3;
+  GeoPolygon area = 4;
+  SwarmConfig swarm_config = 5;
+  int64 created_at = 6;
+  int64 updated_at = 7;
+}
+
+enum MissionStatus {
+  MISSION_STATUS_UNSPECIFIED = 0;
+  MISSION_STATUS_PLANNED = 1;
+  MISSION_STATUS_DEPLOYING = 2;
+  MISSION_STATUS_ACTIVE = 3;
+  MISSION_STATUS_PAUSED = 4;
+  MISSION_STATUS_RECALLING = 5;
+  MISSION_STATUS_COMPLETED = 6;
+  MISSION_STATUS_ABORTED = 7;
+}
+
+message SwarmConfig {
+  int32 mother_drone_count = 1;
+  LegionConfig ant_legion = 2;
+  LegionConfig bee_legion = 3;
+  LegionConfig medical_legion = 4;
+}
+
+message LegionConfig {
+  LegionType type = 1;
+  int32 drone_count = 2;
+  FormationPattern pattern = 3;
+}
+
+enum LegionType {
+  LEGION_TYPE_UNSPECIFIED = 0;
+  LEGION_TYPE_ANT = 1;
+  LEGION_TYPE_BEE = 2;
+  LEGION_TYPE_MEDICAL = 3;
+}
+
+enum FormationPattern {
+  FORMATION_PATTERN_UNSPECIFIED = 0;
+  FORMATION_PATTERN_GRID = 1;
+  FORMATION_PATTERN_LINE = 2;
+  FORMATION_PATTERN_CIRCLE = 3;
+  FORMATION_PATTERN_CONE = 4;
+  FORMATION_PATTERN_ADAPTIVE = 5;
+}
+
+message GeoPoint {
+  double latitude = 1;
+  double longitude = 2;
+  double altitude = 3;
+}
+
+message GeoPolygon {
+  repeated GeoPoint points = 1;
+}
+
+message TelemetryBatch {
+  repeated DroneTelemetryPoint points = 1;
+  int64 timestamp = 2;
+}
+
+message DroneTelemetryPoint {
+  string drone_id = 1;
+  GeoPoint position = 2;
+  double speed = 3;
+  double heading = 4;
+  double battery_percent = 5;
+  DroneHealth health = 6;
+  int64 timestamp = 7;
+}
+
+message DroneHealth {
+  bool gps_ok = 1;
+  bool imu_ok = 2;
+  bool motors_ok = 3;
+  bool camera_ok = 4;
+  bool comms_ok = 5;
+  double cpu_temp = 6;
+}
+
+message Formation {
+  string formation_id = 1;
+  LegionType legion_type = 2;
+  FormationPattern pattern = 3;
+  repeated DronePosition positions = 4;
+}
+
+message DronePosition {
+  string drone_id = 1;
+  GeoPoint target = 2;
+  GeoPoint current = 3;
+}
+
+message MapUpdate {
+  string mission_id = 1;
+  bytes point_cloud = 2;
+  bytes orthophoto = 3;
+  GeoPolygon bounds = 4;
+  int64 timestamp = 5;
+}
+
+message MapSnapshot {
+  string mission_id = 1;
+  bytes snapshot_data = 2;
+  string format = 3;
+}
+
+// Request/Response stubs
+message CreateMissionRequest { string incident_id = 1; GeoPolygon area = 2; SwarmConfig config = 3; }
+message AbortMissionRequest { string mission_id = 1; string reason = 2; }
+message AbortMissionResponse { bool success = 1; }
+message GetMissionStatusRequest { string mission_id = 1; }
+message ListActiveMissionsRequest { string filter = 1; }
+message MissionList { repeated Mission missions = 1; }
+message DeploySwarmRequest { string mission_id = 1; }
+message DeploySwarmResponse { bool success = 1; string deployment_id = 2; }
+message RecallSwarmRequest { string mission_id = 1; }
+message RecallSwarmResponse { bool success = 1; }
+message SetFormationRequest { string mission_id = 1; FormationPattern pattern = 2; }
+message UpdateFormationRequest { string formation_id = 1; FormationPattern pattern = 2; }
+message TelemetryRequest { string mission_id = 1; }
+message MapUpdateRequest { string mission_id = 1; }
+message GetMapSnapshotRequest { string mission_id = 1; }
+message DroneCommand { string drone_id = 1; string command = 2; bytes payload = 3; }
+message CommandAck { bool accepted = 1; string ack_id = 2; }
+message GetDroneStatusRequest { string drone_id = 1; }
+message DroneStatus { string drone_id = 1; DroneHealth health = 2; GeoPoint position = 3; double battery = 4; }
+message StreamVideoRequest { string drone_id = 1; }
+message VideoFrame { bytes frame = 1; string codec = 2; int64 timestamp = 3; }

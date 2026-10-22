@@ -1,147 +1,173 @@
-# ───────────────────────────────────────────────────────────────
-# Swarm Command & Control — Local Development Stack
-# ───────────────────────────────────────────────────────────────
-# Run:  docker compose up -d
-# Stop: docker compose down
-# ───────────────────────────────────────────────────────────────
+# =============================================================================
+# Docker Compose - Development Environment
+# Swarm Command & Control System
+# =============================================================================
 
 version: "3.9"
 
 x-common-env: &common-env
-  KAFKA_BROKERS: kafka:9092
-  REDIS_URL: redis://redis:6379/0
-  POSTGRES_DSN: postgresql+asyncpg://scc:scc@postgres:5432/scc
-  MQTT_BROKER: mqtt://emqx:1883
-  TRITON_URL: http://triton:8000
+  TZ: Asia/Kolkata
+  PYTHONUNBUFFERED: "1"
 
 services:
-  # ── Data Stores ──────────────────────────────────────────────
+  # ---------------------------------------------------------------------------
+  # DATA LAYER
+  # ---------------------------------------------------------------------------
   postgres:
     image: postgis/postgis:16-3.4
+    container_name: scc-postgres
     environment:
-      POSTGRES_DB: scc
+      POSTGRES_DB: scc_dev
       POSTGRES_USER: scc
-      POSTGRES_PASSWORD: scc
-    ports: ["5432:5432"]
+      POSTGRES_PASSWORD: scc_dev_password
+    ports:
+      - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./infra/docker/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - pg-data:/var/lib/postgresql/data
+      - ./infra/docker/images/postgres-postgis/init.sql:/docker-entrypoint-initdb.d/01-init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U scc"]
-      interval: 5s
+      interval: 10s
+      timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    ports: ["6379:6379"]
-    command: redis-server --appendonly yes
+    container_name: scc-redis
+    ports:
+      - "6379:6379"
     volumes:
-      - redisdata:/data
+      - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # ── Event Streaming ──────────────────────────────────────────
+  # ---------------------------------------------------------------------------
+  # EVENT STREAMING
+  # ---------------------------------------------------------------------------
   kafka:
-    image: confluentinc/cp-kafka:7.7.0
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: scc-kafka
     depends_on:
-      zookeeper:
-        condition: service_started
-    ports: ["9092:9092"]
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9094:9094"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,HOST_DOCKER:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9094,HOST_DOCKER://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    volumes:
+      - kafka-data:/var/lib/kafka/data
 
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.7.0
-    ports: ["2181:2181"]
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: scc-zookeeper
+    ports:
+      - "2181:2181"
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
 
-  kafka-ui:
-    image: provectuslabs/kafka-ui:latest
-    ports: ["8080:8080"]
-    environment:
-      KAFKA_CLUSTERS_0_NAME: local
-      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
-    depends_on: [kafka]
-
-  # ── MQTT Broker (drone telemetry) ───────────────────────────
   emqx:
     image: emqx/emqx:5.7
+    container_name: scc-emqx
     ports:
-      - "1883:1883"    # MQTT
-      - "8083:8083"    # WebSocket
-      - "18083:18083"  # Dashboard
-    volumes:
-      - emqxdata:/opt/emqx/data
-
-  # ── AI Model Serving ────────────────────────────────────────
-  triton:
-    image: nvcr.io/nvidia/tritonserver:24.06-py3
-    ports:
-      - "8000:8000"    # HTTP
-      - "8001:8001"    # gRPC
-      - "8002:8002"    # Metrics
-    volumes:
-      - ./ai/serving/triton/model_repository:/models
-    command: ["tritonserver", "--model-repository=/models"]
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-
-  # ── MLflow Tracking ─────────────────────────────────────────
-  mlflow:
-    image: ghcr.io/mlflow/mlflow:v2.14.3
-    ports: ["5000:5000"]
+      - "1883:1883"   # MQTT
+      - "8083:8083"   # WebSocket
+      - "8084:8084"   # WSS
+      - "18083:18083" # Dashboard
     environment:
-      MLFLOW_BACKEND_STORE_URI: postgresql://scc:scc@postgres:5432/mlflow
-      MLFLOW_DEFAULT_ARTIFACT_ROOT: /mlflow/artifacts
+      EMQX_NAME: scc-emqx
     volumes:
-      - mlflowdata:/mlflow/artifacts
-    depends_on: [postgres]
+      - emqx-data:/opt/emqx/data
 
-  # ── Object Storage ──────────────────────────────────────────
+  # ---------------------------------------------------------------------------
+  # OBJECT STORAGE
+  # ---------------------------------------------------------------------------
   minio:
     image: minio/minio:latest
+    container_name: scc-minio
     ports:
       - "9000:9000"
-      - "9001:9001"   # Console
+      - "9001:9001"  # Console
     environment:
-      MINIO_ROOT_USER: sccminio
-      MINIO_ROOT_PASSWORD: sccminio123
+      MINIO_ROOT_USER: scc_minio
+      MINIO_ROOT_PASSWORD: scc_minio_password
     volumes:
-      - miniodata:/data
+      - minio-data:/data
     command: server /data --console-address ":9001"
 
-  # ── Monitoring ──────────────────────────────────────────────
+  # ---------------------------------------------------------------------------
+  # AI/ML SERVING
+  # ---------------------------------------------------------------------------
+  triton:
+    image: nvcr.io/nvidia/tritonserver:24.01-py3
+    container_name: scc-triton
+    ports:
+      - "8000:8000"  # HTTP
+      - "8001:8001"  # gRPC
+      - "8002:8002"  # Metrics
+    volumes:
+      - ./ai-ml/serving/triton/models:/models
+    command: ["tritonserver", "--model-repository=/models"]
+    profiles:
+      - gpu
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.11.0
+    container_name: scc-mlflow
+    ports:
+      - "5000:5000"
+    environment:
+      MLFLOW_BACKEND_STORE_URI: postgresql://scc:scc_dev_password@postgres:5432/mlflow
+      MLFLOW_DEFAULT_ARTIFACT_ROOT: s3://mlflow/artifacts
+    depends_on:
+      - postgres
+      - minio
+    profiles:
+      - ml
+
+  # ---------------------------------------------------------------------------
+  # MONITORING
+  # ---------------------------------------------------------------------------
   prometheus:
-    image: prom/prometheus:v2.53.0
-    ports: ["9090:9090"]
+    image: prom/prometheus:v2.50.0
+    container_name: scc-prometheus
+    ports:
+      - "9090:9090"
     volumes:
       - ./infra/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    profiles:
+      - monitoring
 
   grafana:
-    image: grafana/grafana:11.1.0
-    ports: ["3002:3000"]
+    image: grafana/grafana:10.4.0
+    container_name: scc-grafana
+    ports:
+      - "3000:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: admin
     volumes:
-      - grafanadata:/var/lib/grafana
-      - ./infra/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
-    depends_on: [prometheus]
+      - ./infra/monitoring/grafana:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    profiles:
+      - monitoring
 
 volumes:
-  pgdata:
-  redisdata:
-  emqxdata:
-  mlflowdata:
-  miniodata:
-  grafanadata:
+  pg-data:
+  redis-data:
+  kafka-data:
+  zookeeper-data:
+  emqx-data:
+  minio-data:
+  prometheus-data:
+  grafana-data:

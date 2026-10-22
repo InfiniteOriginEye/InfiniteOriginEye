@@ -1,0 +1,41 @@
+{
+  "name": "s3-tactical-view",
+  "version": "0.1.0",
+  "private": true,
+  "description": "S3 - Swarm Command & Control Tactical Interface (C-DAC/NDRF/SDRF)",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "next": "^14.2",
+    "react": "^18.3",
+    "react-dom": "^18.3",
+    "@mui/material": "^5.15",
+    "cesium": "^1.119",
+    "resium": "^1.17",
+    "deck.gl": "^9.0",
+    "@deck.gl/core": "^9.0",
+    "@deck.gl/layers": "^9.0",
+    "three": "^0.163",
+    "@react-three/fiber": "^8.15",
+    "@grpc/grpc-js": "^1.12",
+    "@grpc/proto-loader": "^0.7",
+    "grpc-web": "^1.4",
+    "zustand": "^4.5",
+    "axios": "^1.6",
+    "socket.io-client": "^4.7",
+    "date-fns": "^3.6",
+    "comlink": "^4.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.4",
+    "@types/react": "^18.3",
+    "@types/three": "^0.163",
+    "vite": "^5.2",
+    "vitest": "^1.4"
+  }
+}

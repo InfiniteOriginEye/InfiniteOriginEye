@@ -1,0 +1,143 @@
+# =============================================================================
+# Swarm Command & Control (SC&C)
+# Disaster Management Drone Swarm System for India
+# =============================================================================
+
+[toolchain]
+python = "3.11"
+go = "1.22"
+node = "20"
+
+[project]
+name = "swarm-command-control"
+version = "0.1.0"
+description = "Swarm Command & Control system for disaster management using drone swarms - India ERSS/112 integration"
+
+# =============================================================================
+# AGENCY OWNERSHIP MAP
+# =============================================================================
+#
+# Component  | Primary Agency    | Role
+# -----------|-------------------|------------------------------------------
+# S1         | SDMA/SEOC         | Incident Intake & Triage
+# S2         | SDMA/SEOC         | Professional Review Dashboard
+# S3         | C-DAC (build)     | Swarm Command & Control
+#            | NDRF (field ops)  | Swarm Command & Control
+#            | SDRF/Fire (state) | Swarm Command & Control
+# S4         | NDRF/SDRF         | Rescue Team Coordination
+# S5         | SDMA/SEOC         | Early-Warning Ingest (IMD/INCOIS/CWC)
+# S6         | ERSS/PSAP         | ERSS/112 Connector (C-DAC builds)
+# S7         | NDMA/SDMA         | Data Handover & Reporting
+# S8         | NIC (hosts)       | Platform Infrastructure (C-DAC builds)
+# S9         | C-DAC             | AI/ML Pipeline
+# S10        | NDMA/SDMA         | Citizen App
+#
+# =============================================================================
+# TECH STACK
+# =============================================================================
+#
+# Layer         | Technology
+# --------------|--------------------------------------------------------
+# Backend       | Python 3.11 + FastAPI (S1,S2,S4,S5,S6,S7)
+#               | Go 1.22 + gRPC (S3 real-time)
+# Event Stream  | Apache Kafka, MQTT 5.0 (EMQX), WebSocket
+# Data          | PostgreSQL 16 + PostGIS 3.4 + TimescaleDB
+#               | Redis 7+, MinIO, pgvector/Qdrant
+# AI/ML         | PyTorch → ONNX → Triton Inference Server
+#               | YOLOv8/YOLO11, Whisper, XGBoost/LightGBM
+#               | MLflow, CVAT
+# Frontend      | Next.js 14 + CesiumJS + Deck.gl + MUI (S2)
+#               | Next.js 14 + CesiumJS + gRPC-Web (S3)
+#               | React Native + MapLibre GL (S4, S10)
+# Drone/Edge    | ArduPilot/PX4, ROS 2, MAVLink, MQTT
+#               | Jetson Orin, TensorRT, WebRTC
+# Infra         | Kubernetes, Docker, GitLab CI
+#               | Prometheus + Grafana + Loki
+#               | Terraform + Ansible, Vault
+# =============================================================================
+
+[services]
+
+[services.s1]
+name = "Incident Intake & Triage"
+owner = "SDMA/SEOC"
+tech = "Python FastAPI"
+port = 8001
+description = "Multi-channel incident ingestion, AI triage scoring, human-in-the-loop review queue"
+
+[services.s2]
+name = "Professional Review Dashboard"
+owner = "SDMA/SEOC"
+tech = "Python FastAPI + Next.js 14"
+port = 8002
+description = "SEOC Duty Officer review interface, approval/rejection, dispatch authorization"
+
+[services.s3]
+name = "Swarm Command & Control"
+owner = "C-DAC/NDRF/SDRF"
+tech = "Go + gRPC + Next.js 14 + CesiumJS"
+port = 8003
+description = "Real-time drone swarm management, 3D digital twin, formation control, mission planning"
+
+[services.s4]
+name = "Rescue Team Coordination"
+owner = "NDRF/SDRF/Health"
+tech = "Python FastAPI + React Native"
+port = 8004
+description = "Field team tracking, comms relay, patient handover, offline-first"
+
+[services.s5]
+name = "Early-Warning Ingest"
+owner = "SDMA/SEOC"
+tech = "Python FastAPI"
+port = 8005
+description = "IMD/INCOIS/CWC/GFS feed ingestion, threshold analysis, automated alerting"
+
+[services.s6]
+name = "ERSS/112 Connector"
+owner = "ERSS/PSAP/C-DAC"
+tech = "Python FastAPI"
+port = 8006
+description = "Integration with state ERSS/112 PSAP systems, CAD dispatch, bi-directional sync"
+
+[services.s7]
+name = "Data Handover & Reporting"
+owner = "NDMA/SDMA"
+tech = "Python FastAPI"
+port = 8007
+description = "NDMIS export, compliance reports, archival, audit trail"
+
+[services.s8]
+name = "Platform Infrastructure"
+owner = "NIC/C-DAC"
+tech = "Kubernetes + Terraform + Ansible"
+description = "Hosting, monitoring, CI/CD, security, NIC MeghRaj deployment"
+
+[services.s9]
+name = "AI/ML Pipeline"
+owner = "C-DAC"
+tech = "PyTorch + ONNX + Triton"
+description = "Model training, evaluation, serving, CVAT annotation, MLflow tracking"
+
+[services.s10]
+name = "Citizen App"
+owner = "NDMA/SDMA"
+tech = "React Native + MapLibre GL"
+description = "Citizen incident reporting, safety tracking, offline capability"
+
+# =============================================================================
+# PILOT STATES
+# =============================================================================
+[pilot_states]
+states = ["Uttarakhand", "Kerala", "Tamil Nadu", "Assam", "Himachal Pradesh"]
+
+# =============================================================================
+# BUILD vs SIMULATE
+# =============================================================================
+[build]
+components = ["S1", "S2", "S3", "S4", "S5", "S9"]
+note = "Build these for real with full business logic and real integrations where possible"
+
+[simulate]
+components = ["drone_hardware", "erss_inbound", "ndrf_teams", "sdrf_teams", "citizen_reports"]
+note = "Simulate via Python MQTT publishers, seed DB + cron, scripted API calls"
