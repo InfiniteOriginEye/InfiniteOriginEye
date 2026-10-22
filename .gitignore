@@ -1,0 +1,69 @@
+# ── Python ────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+.eggs/
+*.egg
+.venv/
+venv/
+.env
+*.pyc
+
+# ── Node / Next.js ───────────────────────────────────────────
+node_modules/
+.next/
+out/
+.expo/
+*.tsbuildinfo
+
+# ── Go ───────────────────────────────────────────────────────
+telemetry/bin/
+*.exe
+
+# ── React Native ─────────────────────────────────────────────
+mobile/rescue-app/ios/
+mobile/rescue-app/android/
+mobile/citizen-app/ios/
+mobile/citizen-app/android/
+
+# ── Docker / Volumes ─────────────────────────────────────────
+pgdata/
+redisdata/
+emqxdata/
+mlflowdata/
+miniodata/
+grafanadata/
+
+# ── AI / ML ──────────────────────────────────────────────────
+ai/training/datasets/*.zip
+ai/training/datasets/*.tar.gz
+ai/serving/triton/model_repository/*/
+!ai/serving/triton/model_repository/.gitkeep
+*.onnx
+*.pt
+*.pth
+*.bin
+mlruns/
+
+# ── IDE ──────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# ── Secrets (NEVER commit) ───────────────────────────────────
+*.pem
+*.key
+*.crt
+.env.production
+infra/vault/secrets/
+
+# ── Build artifacts ──────────────────────────────────────────
+*.log
+coverage/
+htmlcov/
+.ruff_cache/
+.mypy_cache/

@@ -1,0 +1,21 @@
+{
+  "name": "swarm-command-control",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Swarm Command & Control — India disaster rescue drone swarm system",
+  "workspaces": [
+    "dashboards/seoc-dashboard",
+    "dashboards/swarm-controller"
+  ],
+  "scripts": {
+    "dev:backend": "cd backend && uvicorn app.main:app --reload --port 8000",
+    "dev:seoc": "cd dashboards/seoc-dashboard && next dev -p 3000",
+    "dev:swarm": "cd dashboards/swarm-controller && next dev -p 3001",
+    "dev:telemetry": "cd telemetry && go run ./cmd/telemetry-ingest",
+    "dev:sim": "cd drone-sim && python -m simulators.drone_telemetry_sim",
+    "dev:all": "concurrently \"npm:dev:backend\" \"npm:dev:seoc\" \"npm:dev:swarm\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}

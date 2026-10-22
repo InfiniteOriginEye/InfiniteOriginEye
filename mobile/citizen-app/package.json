@@ -1,0 +1,26 @@
+{
+  "name": "@scc/citizen-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "expo": "~51.0.0",
+    "expo-router": "~3.5.0",
+    "expo-location": "~16.0.0",
+    "react": "18.3.1",
+    "react-native": "0.74.5",
+    "zustand": "^4.5.0",
+    "i18next": "^23.11.0",
+    "react-i18next": "^14.1.0",
+    "@react-native-async-storage/async-storage": "^1.23.0"
+  },
+  "devDependencies": {
+    "@types/react": "~18.3.0",
+    "typescript": "~5.5.0"
+  }
+}

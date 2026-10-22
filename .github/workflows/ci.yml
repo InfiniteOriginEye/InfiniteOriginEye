@@ -1,0 +1,103 @@
+name: CI — Swarm Command & Control
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Backend (Python / FastAPI) ─────────────────────────────
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: mypy app/ --ignore-missing-imports
+      - run: pytest --cov=app --cov-report=xml
+      - uses: codecov/codecov-action@v4
+        with:
+          file: backend/coverage.xml
+
+  # ── Telemetry Service (Go) ─────────────────────────────────
+  telemetry:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: telemetry
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - run: go mod download
+      - run: go vet ./...
+      - run: go test -race -coverprofile=coverage.out ./...
+      - run: go build ./cmd/telemetry-ingest
+
+  # ── SEOC Dashboard (Next.js) ───────────────────────────────
+  seoc-dashboard:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboards/seoc-dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run type-check
+      - run: npm run build
+
+  # ── Swarm Controller Dashboard ────────────────────────────
+  swarm-controller:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboards/swarm-controller
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  # ── AI / ML Models ────────────────────────────────────────
+  ai-models:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: pytest tests/ -k "not gpu"  # skip GPU tests in CI
+
+  # ── Security Scan ─────────────────────────────────────────
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy fs scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          severity: "CRITICAL,HIGH"
